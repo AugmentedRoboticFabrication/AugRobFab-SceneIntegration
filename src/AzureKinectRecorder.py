@@ -2,13 +2,14 @@ import datetime, os, json
 import open3d as o3d
 
 class AzureKinectRecorder:
-	def __init__(self, fn=None, config=None, align=False, root=None):
+	def __init__(self, fn=None, config=None, align=False, root=None, frameMode=False):
 		#global variables
 		self.exit = False
 		self.record = False
 		self.align = align
 		self.vis = o3d.visualization.VisualizerWithKeyCallback()
 		self.counter = 0
+		self.mode = frameMode
 
 		#os variables
 		if fn is None:
@@ -34,14 +35,14 @@ class AzureKinectRecorder:
 		if not self.recorder.init_sensor():
 			raise RuntimeError('Failed to connect to sensor!')
 
-	def escape_callback(self, vis):
+	def escape_callback(self):
 		if self.recorder.is_record_created():
 			self.recorder.close_record()
 			self.record = False
 		self.exit = True
 		return False
 
-	def space_callback(self, vis):
+	def space_callback(self):
 		if not self.recorder.is_record_created():
 			if not os.path.exists(self.abspath):
 				os.mkdir(self.abspath)
@@ -51,9 +52,10 @@ class AzureKinectRecorder:
 					  'Press [ENTER] to save.'
 					  'Press [ESC] to exit.')
 				self.record = True
-		print('Recording frame %03d...'%self.counter, end='')
-		self.recorder.record_frame(True,self.align)
-		print('Done!')
+		if self.mode:
+			print('Recording frame %03d...'%self.counter, end='')
+			self.recorder.record_frame(True,self.align)
+			print('Done!')
 		self.counter+=1
 		return False
 
@@ -72,7 +74,8 @@ class AzureKinectRecorder:
 			rgbd = self.recorder.record_frame(False, self.align)
 			if rgbd is None:
 				continue
-			
+			if not self.mode:
+				self.recorder.record_frame(True,self.align)
 			if not geometryAdded:
 				self.vis.add_geometry(rgbd)
 				geometryAdded = True
