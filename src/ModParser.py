@@ -13,6 +13,11 @@ class T_ROBParser:
 		else:
 			self.cam2tcp = cam2tcp
 
+		# self.cam2tcp = np.eye(4)
+		# self.cam2tcp[0][3] = 30
+		# self.cam2tcp[1][3] = -1.62
+		# self.cam2tcp[2][3] = -1.7
+
 	def tcp2base(self, export=False):
 		fn = glob.glob("%s\\%s\\*.mod" % (self.root, self.fn))
 

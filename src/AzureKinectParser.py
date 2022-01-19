@@ -37,7 +37,6 @@ class AzureKinectMKVParser(object):
 			rgbd = self.reader.next_frame()
 			if rgbd is None:
 				continue
-
 			frames.append(rgbd)
 
 			if color:

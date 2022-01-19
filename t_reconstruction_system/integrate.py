@@ -105,16 +105,16 @@ def integrate(depth_file_names, color_file_names, intrinsic, extrinsics,
                 attr_names=('tsdf', 'weight', 'color'),
                 attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
                 attr_channels=((1), (1), (3)),
-                voxel_size=0.0025,#3.0 / 512,
+                voxel_size= .006,#3.0 / 512,
                 block_resolution=8,
-                block_count=100000,
+                block_count=200000,
                 device=o3d.core.Device('CUDA:0'))
         else:
             vbg = o3d.t.geometry.VoxelBlockGrid(
                 attr_names=('tsdf', 'weight'),
                 attr_dtypes=(o3c.float32, o3c.float32),
                 attr_channels=((1), (1)),
-                voxel_size=3.0 / 512,
+                voxel_size= 3.0 / 512,
                 block_resolution=8,
                 block_count=100000,
                 device=o3d.core.Device('CUDA:0'))
@@ -137,6 +137,12 @@ def integrate(depth_file_names, color_file_names, intrinsic, extrinsics,
             else:
                 vbg.integrate(frustum_block_coords, depth, intrinsic, extrinsic,
                               config.depth_scale, config.depth_max)
+            
+            # if i > 0:
+            #     mesh = vbg.extract_triangle_mesh(-1, 0)
+            #     lineset = lineset_from_extrinsics(extrinsics[:i])
+            #     o3d.visualization.draw([mesh.to_legacy(), lineset])
+
             dt = time.time() - start
         print('Finished integrating {} frames in {} seconds'.format(
             n_files, dt))
