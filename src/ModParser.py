@@ -11,14 +11,10 @@ class T_ROBParser:
 		if cam2tcp is not None:
 			self.cam2tcp = np.load("%s\\%s\\%s" % (self.root, self.fn, cam2tcp))
 		else:
-			self.cam2tcp = cam2tcp
+			self.cam2tcp = np.eye(4)
+		print (self.cam2tcp)
 
-		# self.cam2tcp = np.eye(4)
-		# self.cam2tcp[0][3] = 30
-		# self.cam2tcp[1][3] = -1.62
-		# self.cam2tcp[2][3] = -1.7
-
-	def tcp2base(self, export=False):
+	def tcp2base(self, export=True):
 		fn = glob.glob("%s\\%s\\*.mod" % (self.root, self.fn))
 
 		if len(fn) > 1:
@@ -40,6 +36,7 @@ class T_ROBParser:
 				t = tmp[0][1:].split(",")
 				t = [float(i) for i in t]
 				t = np.asarray(t).reshape(-1,3)
+				# t[-1] = t[-1] + 12 #################################################################################################################################
 
 				quat = tmp[1][2:].split(",")
 				quat = [float(i) for i in quat]
@@ -55,7 +52,7 @@ class T_ROBParser:
 
 		return result
 	
-	def cam2base(self, export=False):
+	def cam2base(self, export=True):
 		if self.cam2tcp is None:
 			raise RuntimeError("No cam2tcp tranformation given!")
 

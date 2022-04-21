@@ -19,7 +19,7 @@ class AzureKinectMKVParser(object):
 		self.reader = o3d.io.AzureKinectMKVReader()
 
 	def rgbd(self, color=False, depth=False):
-		frames = []
+		# frames = []
 
 		if color and not os.path.exists('%s\\%s\\color' %(self.root, self.fn)):
 			os.mkdir('%s\\%s\\color' %(self.root, self.fn))
@@ -37,7 +37,7 @@ class AzureKinectMKVParser(object):
 			rgbd = self.reader.next_frame()
 			if rgbd is None:
 				continue
-			frames.append(rgbd)
+			# frames.append(rgbd)
 
 			if color:
 				color_fn = '%s\\%s\\color\\%03d.jpg' % (self.root, self.fn, index)
