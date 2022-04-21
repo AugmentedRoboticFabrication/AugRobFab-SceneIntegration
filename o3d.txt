@@ -1,0 +1,8 @@
+python npy2log.py ../nfov_85_ruled/cam2base.npy
+
+python integrate.py --path_dataset ../nfov_85_ruled --path_trajectory trajectory.log --color_folder color --integrate_color --path_intrinsic ../nfov_85_ruled\intrinsic.json
+
+python dense_slam_gui.py --path_dataset capture_geo2 --path_intrinsic capture_geo2\intrinsic.json
+
+
+python npy2log.py ../nfov_85_ruled/cam2base.npy && python integrate.py --path_dataset ../nfov_85_ruled --path_trajectory trajectory.log --color_folder color --integrate_color --path_intrinsic ../nfov_85_ruled\intrinsic.json
