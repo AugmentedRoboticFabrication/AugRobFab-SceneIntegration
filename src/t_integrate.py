@@ -164,9 +164,10 @@ class Integrate:
 		else:
 			out_dir = os.path.join(self.dir, fn)
 			print("Saving PointCloud to %s..." % out_dir, end="")
-			mesh = self.vbg.extract_triangle_mesh(-1, 0)
-			o3d.io.write_triangle_mesh(out_dir, mesh.to_legacy())
+			mesh = self.vbg.extract_triangle_mesh(-1, 0).to_legacy()
+			o3d.io.write_triangle_mesh(out_dir, mesh)
 			print("Done!")
+		return mesh
 	
 	def exportPointCloud(self, fn="pcd.ply"):
 		if self.vbg is None:
@@ -175,6 +176,8 @@ class Integrate:
 		else:
 			out_dir = os.path.join(self.dir, fn)
 			print("Saving PointCloud to %s..." % out_dir, end="")
-			pcd = self.vbg.extract_point_cloud(-1, 0)
-			o3d.io.write_point_cloud(out_dir, pcd.to_legacy())
+			pcd = self.vbg.extract_point_cloud(-1, 0).to_legacy()
+			o3d.io.write_point_cloud(out_dir, pcd)
 			print("Done!")
+			print(pcd)
+		return pcd
