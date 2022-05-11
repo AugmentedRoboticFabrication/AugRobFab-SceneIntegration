@@ -55,7 +55,7 @@ class T_ROBParser:
 		if self.cam2tcp is None:
 			raise RuntimeError("No cam2tcp tranformation given!")
 
-		tcp2base = self.tcp2base(export=False)
+		tcp2base = self.tcp2base(export=True)
 		
 		result = []
 		for i in range(len(tcp2base)):
@@ -66,7 +66,7 @@ class T_ROBParser:
 		
 	def trajectory(self):
 		
-		Ts = self.cam2base(export=False)
+		Ts = self.cam2base(export=True)
 		n = len(Ts)
 		result = []
 		with open('%s\\%s\\trajectory.log' % (self.root, self.fn), 'w') as f:

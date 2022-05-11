@@ -163,10 +163,20 @@ class Integrate:
 			return
 		else:
 			out_dir = os.path.join(self.dir, fn)
+
+			mesh = self.vbg.extract_triangle_mesh().to_legacy()
+			
+			triangle_clusters, cluster_n_triangles, cluster_area = (mesh.cluster_connected_triangles())
+			triangle_clusters = np.asarray(triangle_clusters)
+			cluster_n_triangles = np.asarray(cluster_n_triangles)
+			cluster_area = np.asarray(cluster_area)
+			triangles_to_remove = cluster_n_triangles[triangle_clusters] < 10000
+			mesh.remove_triangles_by_mask(triangles_to_remove)
+
 			print("Saving PointCloud to %s..." % out_dir, end="")
-			mesh = self.vbg.extract_triangle_mesh(-1, 0).to_legacy()
 			o3d.io.write_triangle_mesh(out_dir, mesh)
 			print("Done!")
+			print(mesh)
 		return mesh
 	
 	def exportPointCloud(self, fn="pcd.ply"):
@@ -175,9 +185,8 @@ class Integrate:
 			return
 		else:
 			out_dir = os.path.join(self.dir, fn)
+			pcd = self.vbg.extract_point_cloud().to_legacy()
 			print("Saving PointCloud to %s..." % out_dir, end="")
-			pcd = self.vbg.extract_point_cloud(-1, 0).to_legacy()
 			o3d.io.write_point_cloud(out_dir, pcd)
 			print("Done!")
-			print(pcd)
 		return pcd

@@ -184,7 +184,9 @@ if __name__ == '__main__':
 
     lineset = lineset_from_extrinsics(extrinsics)
 
-    mesh = vbg.extract_triangle_mesh(-1, 0)
-    o3d.io.write_triangle_mesh("./test.ply", mesh.to_legacy())
-    # o3d.visualization.draw([mesh.to_legacy(), lineset])
+    pcd = vbg.extract_point_cloud()
+    mesh = vbg.extract_triangle_mesh()
+    o3d.io.write_triangle_mesh("./mesh.ply", mesh.to_legacy())
+    o3d.io.write_point_cloud("./test.ply", pcd.to_legacy())
+    o3d.visualization.draw([mesh.to_legacy(), lineset])
 
