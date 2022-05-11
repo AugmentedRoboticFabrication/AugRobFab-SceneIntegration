@@ -34,7 +34,6 @@ import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 import time
-import matplotlib.pyplot as plt
 
 from config import ConfigParser
 from common import load_rgbd_file_names, load_depth_file_names, save_poses, load_intrinsic, load_extrinsics, get_default_testdata
