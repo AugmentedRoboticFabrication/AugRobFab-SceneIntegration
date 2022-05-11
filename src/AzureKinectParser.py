@@ -2,9 +2,6 @@ import os
 import open3d as o3d
 import numpy as np
 
-import pyk4a
-from pyk4a import PyK4APlayback
-
 class AzureKinectMKVParser(object):
 	def __init__(self, fn, root=None):
 		self.fn = fn
@@ -15,7 +12,7 @@ class AzureKinectMKVParser(object):
 			self.root = root
 		
 		self.mkv = '%s\\%s\\capture.mkv' %(self.root, self.fn)
-		self.playback = PyK4APlayback(self.mkv)
+		self.playback = None
 		self.reader = o3d.io.AzureKinectMKVReader()
 
 	def rgbd(self, color=False, depth=False):
@@ -51,6 +48,11 @@ class AzureKinectMKVParser(object):
 		self.reader.close()
 
 	def calibration(self):
+		os.add_dll_directory("C:\\Program Files\\Azure Kinect SDK v1.4.1\\sdk\\windows-desktop\\amd64\\release\\bin")
+		import pyk4a
+		from pyk4a import PyK4APlayback
+
+		self.playback = PyK4APlayback(self.mkv)
 		print('Exporting factory calibration:')
 		self.playback.open()
 
