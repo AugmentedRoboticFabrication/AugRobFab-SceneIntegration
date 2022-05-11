@@ -12,6 +12,7 @@ class T_ROBParser:
 			self.cam2tcp = np.load(self.root+"/"+cam2tcp)
 		else:
 			self.cam2tcp = np.eye(4)
+		print(self.cam2tcp)
 
 	def tcp2base(self, export=True):
 		fn = glob.glob("%s\\%s\\*.mod" % (self.root, self.fn))
@@ -54,7 +55,7 @@ class T_ROBParser:
 		if self.cam2tcp is None:
 			raise RuntimeError("No cam2tcp tranformation given!")
 
-		tcp2base = self.tcp2base(export=True)
+		tcp2base = self.tcp2base(export=False)
 		
 		result = []
 		for i in range(len(tcp2base)):
@@ -65,7 +66,7 @@ class T_ROBParser:
 		
 	def trajectory(self):
 		
-		Ts = self.cam2base(export=True)
+		Ts = self.cam2base(export=False)
 		n = len(Ts)
 		result = []
 		with open('%s\\%s\\trajectory.log' % (self.root, self.fn), 'w') as f:
