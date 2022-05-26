@@ -135,7 +135,7 @@ class Integrate:
 
 		start = time.time()
 		for i in range(n_files):
-			print('Integrating frame {}/{}'.format(i, n_files))
+			print('Integrating frame {}/{}'.format(i+1, n_files))
 
 			depth = o3d.t.io.read_image(self.depth_file_names[i]).to(self.device)
 			extrinsic = self.extrinsics[i]
@@ -157,14 +157,15 @@ class Integrate:
 		
 		return self.vbg
 
-	def exportMesh(self, fn="mesh.ply"):
+	def exportMesh(self, fn="mesh.ply", bounds=None):
 		if self.vbg is None:
 			print("No Voxel Block Grid was found, run .integrate() first!")
 			return
 		else:
 			out_dir = os.path.join(self.dir, fn)
 
-			mesh = self.vbg.extract_triangle_mesh().to_legacy()
+			mesh = self.vbg.extract_triangle_mesh()
+			mesh = mesh.to_legacy()
 			
 			triangle_clusters, cluster_n_triangles, cluster_area = (mesh.cluster_connected_triangles())
 			triangle_clusters = np.asarray(triangle_clusters)
@@ -172,6 +173,11 @@ class Integrate:
 			cluster_area = np.asarray(cluster_area)
 			triangles_to_remove = cluster_n_triangles[triangle_clusters] < 10000
 			mesh.remove_triangles_by_mask(triangles_to_remove)
+
+			if bounds is not None:
+				bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=np.asarray(bounds[0]).reshape((3,1)),
+															max_bound=np.asarray(bounds[1]).reshape((3,1)))
+				mesh = mesh.crop(bbox)
 
 			print("Saving PointCloud to %s..." % out_dir, end="")
 			o3d.io.write_triangle_mesh(out_dir, mesh)
