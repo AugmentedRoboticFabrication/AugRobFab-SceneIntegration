@@ -52,6 +52,7 @@ class Integrate:
 
 		self.depth_file_names, self.color_file_names = load_rgbd_file_names(fn)
 		self.intrinsic = load_intrinsic(os.path.join(self.dir, intrinsic))
+		print(self.intrinsic)
 		self.extrinsics = load_extrinsics(os.path.join(self.dir, trajectory))
 
 		self.device = o3d.core.Device(device)
