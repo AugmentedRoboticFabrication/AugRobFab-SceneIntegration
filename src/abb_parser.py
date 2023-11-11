@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from src.util import composeH, decomposeH, readJSON, writeJSON
 
+
 class TROBParser:
 	"""
 	A parser class for processing robotic data, specifically for extracting robot trajectories
@@ -18,16 +19,19 @@ class TROBParser:
 		parsing_method='robtarget'
 	) -> None:
 		"""
-		Initializes the TROBParser object.
+		Initializes the TROBParser object with the specified directory, extrinsic calibration data,
+		and the parsing method for the .mod files.
 
 		:param dir: Directory where the .mod files and other related data are stored.
-		:param extrinsic: Path to the JSON file containing extrinsic calibration data.
+		:param extrinsic_dir: Path to the JSON file containing extrinsic calibration data.
 		:param parsing_method: Method used for parsing the .mod files. Default is 'robtarget'.
 		"""
+
 		self.dir = dir
 
 		self.parsing_method = parsing_method.lower()
 
+		# Load extrinsic calibration data if provided, and print it for verification
 		if extrinsic_dir is not None:
 			data = readJSON(extrinsic_dir)
 			self.extrinsic = np.asarray(data.get('extrinsic')).reshape((4,4))
@@ -35,6 +39,8 @@ class TROBParser:
 			print("Extrinsic Calibration:")
 			print(self.extrinsic)
 			print("-------------------")
+		else:
+			self.extrinsic = extrinsic_dir
 
 	def _find_mod_file(self):
 		"""
