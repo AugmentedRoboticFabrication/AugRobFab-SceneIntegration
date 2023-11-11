@@ -1,71 +1,248 @@
-# ----------------------------------------------------------------------------
-# -                        Open3D: www.open3d.org                            -
-# ----------------------------------------------------------------------------
-# The MIT License (MIT)
-#
-# Copyright (c) 2018-2021 www.open3d.org
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-# IN THE SOFTWARE.
-# ----------------------------------------------------------------------------
-
-# examples/python/t_reconstruction_system/integrate.py
-
-# P.S. This example is used in documentation, so, please ensure the changes are
-# synchronized.
-
 import os
+import glob
+
 import numpy as np
 import open3d as o3d
 import open3d.core as o3c
-import time
-# import matplotlib.pyplot as plt
 
-from .t_config import ConfigParser
-from .t_common import load_rgbd_file_names, load_depth_file_names, load_intrinsic, load_extrinsics
+from src.t_common import load_rgbd_file_names, load_depth_file_names, load_intrinsic, load_extrinsics
 
+from src.util import readJSON, import_intrinsic_calib
 
-class Integrate:
-	def __init__(self, fn, root, 
-				 voxel_size=3.0/512, block_count=100000, block_resolution=8, 
-				 depth_max=1.0, depth_scale=1000.0, 
-				 device="CUDA:0", intrinsic="intrinsic.json", trajectory="trajectory.log"):
-		self.fn = fn
-		self.root = root
+class TSDF_Integration():
+	"""
+	A class for integrating TSDF volumes from extrinsic poses,depth and color (optional) images.
 
-		self.dir = os.path.join(self.root, self.fn)
+	Args:
+		intrinsic_matrix: The intrinsic camera matrix of the sensor.
+		voxel_size: The size of a voxel in the TSDF volume.
+		block_count: The number of blocks in the TSDF volume.
+		block_resolution: The resolution of each block in the TSDF volume.
+		depth_max: The maximum depth cut-off used in integrating depth images.
+		depth_scale: The scale factor between depth values in the depth image and the TSDF volume.
+		device: The device to use for computation.
+		integrate_color: Whether to integrate color information into the TSDF volume.
+	"""
 
-		self.depth_file_names, self.color_file_names = load_rgbd_file_names(fn)
-		self.intrinsic = load_intrinsic(os.path.join(self.dir, intrinsic))
-		self.extrinsics = load_extrinsics(os.path.join(self.dir, trajectory))
+	def __init__(
+			self,
+			dir,
+			intrinsic_matrix="intrinsic.json",
+			voxel_size=3.0/512,
+			block_count=100000,
+			block_resolution=8,
+			depth_max=1.0,
+			depth_scale=1000.0,
+			device='CUDA:0',
+			depth_folder_name = 'depth',
+			color_folder_name = None,
+			integrate_color=False):
 
 		self.device = o3d.core.Device(device)
 
-		self.depth_max = depth_max
-		self.depth_scale = depth_scale
+		self.dir = dir
+
+		tmp = import_intrinsic_calib(self.dir, fn=intrinsic_matrix)
+		
+		self.intrinsic_matrix = self._tensorize_intrinsic_matrix(
+			import_intrinsic_calib(self.dir, fn=intrinsic_matrix)[0]
+			)
 
 		self.voxel_size = voxel_size
 		self.block_count = block_count
 		self.block_resolution = block_resolution
 
-		self.vbg = None
+		self.depth_max = depth_max
+		self.depth_scale = depth_scale
+
+		self.integrate_color = color_folder_name is not None
+		self.color_folder_name = color_folder_name
+		self.depth_folder_name = depth_folder_name
+
+
+		self.extrinsics = []
+
+		if self.integrate_color:
+			self.vbg = o3d.t.geometry.VoxelBlockGrid(
+				attr_names=('tsdf', 'weight', 'color'),
+				attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
+				attr_channels=((1), (1), (3)),
+				voxel_size=self.voxel_size,
+				block_resolution=self.block_resolution,
+				block_count=self.block_count,
+				device=self.device)
+		else:
+			self.vbg = o3d.t.geometry.VoxelBlockGrid(
+				attr_names=('tsdf', 'weight'),
+				attr_dtypes=(o3c.float32, o3c.float32),
+				attr_channels=((1), (1)),
+				voxel_size=self.voxel_size,
+				block_resolution=self.block_resolution,
+				block_count=self.block_count,
+				device=self.device)
+
+		self.mesh = o3d.geometry.TriangleMesh()
+		self.extrinsic_lineset = o3d.geometry.LineSet()
+
+	def integrate_frame(self, extrinsic_pose, depth_image, color_image=None):
+		"""
+		Integrates a new depth image and pose into the TSDF volume.
+
+		Args:
+			extrinsic_pose: The pose of the camera that captured the depth image.
+			depth_image: The depth image from the camera.
+			color_image: The color image from the camera (optional).
+		"""
+		t_extrinsic = self._tensorize_extrinsic_pose(extrinsic_pose)
+		self.extrinsics.append(t_extrinsic)
+		t_depth = self._tensorize_depth_image(depth_image)
+
+		frustum_block_coords = self.vbg.compute_unique_block_coordinates(
+			t_depth,
+			self.intrinsic_matrix,
+			t_extrinsic,
+			self.depth_scale,
+			self.depth_max).to(self.device)
+
+		if self.integrate_color and color_image is not None:
+			color = self._tensorize_color_image(color_image)
+			self.vbg.integrate(
+				frustum_block_coords,
+				t_depth,
+				color,
+				self.intrinsic_matrix,
+				t_extrinsic,
+				self.depth_scale,
+				self.depth_max)
+		else:
+			self.vbg.integrate(
+				frustum_block_coords,
+				t_depth,
+				self.intrinsic_matrix,
+				t_extrinsic,
+				self.depth_scale,
+				self.depth_max)
+			
+	def integrate_batch(self):
+		if self.integrate_color:
+			depth_paths, color_paths = self._load_rgbd_file_names()
+		else:
+			depth_paths = self._load_depth_file_names()
+
+		json_path = os.path.join(self.dir, "base_T_camera.json")
+		data = readJSON(json_path)
+		extrinsic_poses = np.asarray(data.get('H')).reshape((-1,4,4))
+
+		for i in range(len(depth_paths)):
+			depth = o3d.t.io.read_image(depth_paths[i])
+			color = o3d.t.io.read_image(color_paths[i]) if self.integrate_color else None
+			print(f'Integrating {i+1}/{len(depth_paths)}...', end='')
+			self.integrate_frame(
+				extrinsic_pose=extrinsic_poses[i],
+				depth_image=depth,
+				color_image=color
+				)
+			print('Done!')
+
+	def _tensorize_depth_image(self, depth_image):
+		if isinstance(depth_image, o3d.cuda.pybind.t.geometry.Image):
+			return depth_image.to(self.device)
+		return o3d.t.geometry.Image(o3c.Tensor(depth_image)).to(self.device)
+
+	def _tensorize_color_image(self, color_image):
+		if isinstance(color_image, o3d.cuda.pybind.t.geometry.Image):
+			return color_image.to(self.device)
+		return o3d.t.geometry.Image(o3c.Tensor(color_image)).to(self.device)
+
+	def _tensorize_intrinsic_matrix(self, intrinsic_matrix):
+		assert (intrinsic_matrix.shape == (3, 3))
+
+		return o3c.Tensor(intrinsic_matrix, o3c.Dtype.Float64)
+
+	def _tensorize_extrinsic_pose(self, extrinsic_pose):
+		assert (extrinsic_pose.shape == (4, 4))
+
+		return o3c.Tensor(extrinsic_pose, o3c.Dtype.Float64)
+
+	def _load_depth_file_names(self):
+
+		depth_folder = os.path.join(self.dir, self.depth_folder_name)
+
+		# Only 16-bit png depth is supported
+		depth_file_names = glob.glob(os.path.join(depth_folder, '*.png'))
+		n_depth = len(depth_file_names)
+		if n_depth == 0:
+			print('Depth image not found in {}, abort!'.format(depth_folder))
+			return []
+
+		return sorted(depth_file_names)
+
+	def _load_rgbd_file_names(self):
+		depth_file_names = self._load_depth_file_names()
+		if len(depth_file_names) == 0:
+			return [], []
+
+		color_folder = os.path.join(self.dir, self.color_folder_name)
+		extensions = ['*.png', '*.jpg']
+		for ext in extensions:
+			color_file_names = glob.glob(os.path.join(color_folder, ext))
+			if len(color_file_names) == len(depth_file_names):
+				return depth_file_names, sorted(color_file_names)
+
+		depth_folder = os.path.join(self.dir, self.depth_folder_name)
+		print('Found {} depth images in {}, but cannot find matched number of '
+			'color images in {} with extensions {}, abort!'.format(
+				len(depth_file_names), depth_folder, color_folder, extensions))
+		return [], []
+
+	def extract_trianglemesh(self, file_name=None):
+		"""
+		Extracts a triangle mesh from the volume.
+
+		Args:
+			file_name (str, optional): The file name to save the mesh to. If None, the mesh will not be saved.
+
+		Returns:
+			The triangle mesh.
+		"""
+		mesh = self.vbg.extract_triangle_mesh()
+		mesh = mesh.to_legacy()
+
+		if file_name is not None:
+			o3d.io.write_triangle_mesh(file_name, mesh)
+		return mesh
+
+	def extract_pointcloud(self, file_name=None):
+		"""
+		Extracts a point cloud from the volume.
+
+		Args:
+			file_name (str, optional): The file name to save the point cloud to. If None, the point cloud will not be saved.
+
+		Returns:
+			The point cloud.
+		"""
+		pcd = self.vbg.extract_point_cloud()
+		pcd = pcd.to_legacy()
+
+		if file_name is not None:
+			o3d.io.write_point_cloud(file_name, pcd)
+		return pcd
+
+	def visualize(self):
+		if not self.visualize:
+			raise Exception(
+				"Visualizer has not been initiated. Please use visualize = True when creating a TSDF_Integration instance.")
+
+		self.mesh = self.extract_trianglemesh()
+		self.extrinsic_lineset = self.lineset_from_extrinsics()
+
+		o3d.visualization.draw_geometries([self.mesh, self.extrinsic_lineset])
 
 	def lineset_from_extrinsics(self):
+		"""
+		Generates camera frustum lineset for visualization.
+		"""
 		POINTS_PER_FRUSTUM = 5
 		EDGES_PER_FRUSTUM = 8
 
@@ -75,7 +252,7 @@ class Integrate:
 
 		cnt = 0
 		for extrinsic in self.extrinsics:
-			pose = np.linalg.inv(extrinsic.cpu().numpy())
+			pose = np.linalg.inv(extrinsic.numpy())
 
 			l = 0.01
 			points.append((pose @ np.array([0, 0, 0, 1]).T)[:3])
@@ -106,93 +283,8 @@ class Integrate:
 
 		lineset = o3d.geometry.LineSet()
 		lineset.points = o3d.utility.Vector3dVector(np.vstack(points))
-		lineset.lines = o3d.utility.Vector2iVector(np.vstack(lines).astype(int))
+		lineset.lines = o3d.utility.Vector2iVector(
+			np.vstack(lines).astype(int))
 		lineset.colors = o3d.utility.Vector3dVector(np.vstack(colors))
 
 		return lineset
-
-	def integrate(self, integrate_color=True, export=True):
-		n_files = len(self.depth_file_names)
-
-		if integrate_color:
-			self.vbg = o3d.t.geometry.VoxelBlockGrid(
-				attr_names=('tsdf', 'weight', 'color'),
-				attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
-				attr_channels=((1), (1), (3)),
-				voxel_size= self.voxel_size,
-				block_resolution=8,
-				block_count=200000,
-				device=o3d.core.Device('CUDA:0'))
-		else:
-			self.vbg = o3d.t.geometry.VoxelBlockGrid(
-				attr_names=('tsdf', 'weight'),
-				attr_dtypes=(o3c.float32, o3c.float32),
-				attr_channels=((1), (1)),
-				voxel_size= self.voxel_size,
-				block_resolution=8,
-				block_count=100000,
-				device=o3d.core.Device('CUDA:0'))
-
-		start = time.time()
-		for i in range(n_files):
-			print('Integrating frame {}/{}'.format(i+1, n_files))
-
-			depth = o3d.t.io.read_image(self.depth_file_names[i]).to(self.device)
-			extrinsic = self.extrinsics[i]
-
-			frustum_block_coords = self.vbg.compute_unique_block_coordinates(
-				depth, self.intrinsic, extrinsic, self.depth_scale, self.depth_max)
-
-			if integrate_color:
-				color = o3d.t.io.read_image(self.color_file_names[i]).to(self.device)
-				self.vbg.integrate(frustum_block_coords, depth, color, self.intrinsic,
-							extrinsic, self.depth_scale, self.depth_max)
-			else:
-				self.vbg.integrate(frustum_block_coords, depth, self.intrinsic, extrinsic,
-							self.depth_scale, self.depth_max)
-
-			dt = time.time() - start
-		print('Finished integrating {} frames in {} seconds'.format(
-			n_files, dt))
-		
-		return self.vbg
-
-	def exportMesh(self, fn="mesh.ply", bounds=None):
-		if self.vbg is None:
-			print("No Voxel Block Grid was found, run .integrate() first!")
-			return
-		else:
-			out_dir = os.path.join(self.dir, fn)
-
-			mesh = self.vbg.extract_triangle_mesh()
-			mesh = mesh.to_legacy()
-			
-			triangle_clusters, cluster_n_triangles, cluster_area = (mesh.cluster_connected_triangles())
-			triangle_clusters = np.asarray(triangle_clusters)
-			cluster_n_triangles = np.asarray(cluster_n_triangles)
-			cluster_area = np.asarray(cluster_area)
-			triangles_to_remove = cluster_n_triangles[triangle_clusters] < 10000
-			mesh.remove_triangles_by_mask(triangles_to_remove)
-
-			if bounds is not None:
-				bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=np.asarray(bounds[0]).reshape((3,1)),
-															max_bound=np.asarray(bounds[1]).reshape((3,1)))
-				mesh = mesh.crop(bbox)
-
-			print("Saving PointCloud to %s..." % out_dir, end="")
-			o3d.io.write_triangle_mesh(out_dir, mesh)
-			print("Done!")
-			print(mesh)
-		return mesh
-	
-	def exportPointCloud(self, fn="pcd.ply"):
-		if self.vbg is None:
-			print("No Voxel Block Grid was found, run .integrate() first!")
-			return
-		else:
-			out_dir = os.path.join(self.dir, fn)
-			pcd = self.vbg.extract_point_cloud().to_legacy()
-			print("Saving PointCloud to %s..." % out_dir, end="")
-			o3d.io.write_point_cloud(out_dir, pcd)
-			print("Done!")
-		return pcd
