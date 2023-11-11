@@ -41,8 +41,6 @@ class TSDF_Integration():
 		self.device = o3d.core.Device(device)
 
 		self.dir = dir
-
-		tmp = import_intrinsic_calib(self.dir, fn=intrinsic_matrix)
 		
 		self.intrinsic_matrix = self._tensorize_intrinsic_matrix(
 			import_intrinsic_calib(self.dir, fn=intrinsic_matrix)[0]
@@ -129,13 +127,15 @@ class TSDF_Integration():
 		else:
 			depth_paths = self._load_depth_file_names()
 
-		json_path = os.path.join(self.dir, "base_T_camera.json")
-		data = readJSON(json_path)
-		extrinsic_poses = np.asarray(data.get('H')).reshape((-1,4,4))
+		trajectory_path = os.path.join(self.dir, "trajectory.log")
+		extrinsic_poses = load_extrinsics(trajectory_path)
 
 		for i in range(len(depth_paths)):
-			depth = o3d.t.io.read_image(depth_paths[i])
-			color = o3d.t.io.read_image(color_paths[i]) if self.integrate_color else None
+			depth = o3d.t.io.read_image(depth_paths[i]).to(self.device)
+			if self.integrate_color:
+				color = o3d.t.io.read_image(color_paths[i]).to(self.device)
+			else:
+				color = None
 			print(f'Integrating {i+1}/{len(depth_paths)}...', end='')
 			self.integrate_frame(
 				extrinsic_pose=extrinsic_poses[i],
@@ -160,6 +160,9 @@ class TSDF_Integration():
 		return o3c.Tensor(intrinsic_matrix, o3c.Dtype.Float64)
 
 	def _tensorize_extrinsic_pose(self, extrinsic_pose):
+		if isinstance(extrinsic_pose, o3d.cuda.pybind.core.Tensor):
+			return extrinsic_pose
+
 		assert (extrinsic_pose.shape == (4, 4))
 
 		return o3c.Tensor(extrinsic_pose, o3c.Dtype.Float64)
@@ -194,8 +197,25 @@ class TSDF_Integration():
 			'color images in {} with extensions {}, abort!'.format(
 				len(depth_file_names), depth_folder, color_folder, extensions))
 		return [], []
+	
+	def load_extrinsics(path_trajectory):
+		extrinsics = []
+		# For either a fragment or a scene
+		if path_trajectory.endswith('log'):
+			data = o3d.io.read_pinhole_camera_trajectory(path_trajectory)
+			for param in data.parameters:
+				extrinsics.append(param.extrinsic)
 
-	def extract_trianglemesh(self, file_name=None):
+		# Only for a fragment
+		elif path_trajectory.endswith('json'):
+			data = o3d.io.read_pose_graph(path_trajectory)
+			for node in data.nodes:
+				extrinsics.append(np.linalg.inv(node.pose))
+
+		return list(map(lambda x: o3d.core.Tensor(x, o3d.core.Dtype.Float64),
+					extrinsics))
+
+	def extract_trianglemesh(self, file_name='mesh.ply'):
 		"""
 		Extracts a triangle mesh from the volume.
 
@@ -209,10 +229,11 @@ class TSDF_Integration():
 		mesh = mesh.to_legacy()
 
 		if file_name is not None:
+			path = os.path.join(self.dir, file_name)
 			o3d.io.write_triangle_mesh(file_name, mesh)
 		return mesh
 
-	def extract_pointcloud(self, file_name=None):
+	def extract_pointcloud(self, file_name='pcd.ply'):
 		"""
 		Extracts a point cloud from the volume.
 
@@ -226,6 +247,7 @@ class TSDF_Integration():
 		pcd = pcd.to_legacy()
 
 		if file_name is not None:
+			path = os.path.join(self.dir, file_name)
 			o3d.io.write_point_cloud(file_name, pcd)
 		return pcd
 
