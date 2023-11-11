@@ -32,17 +32,6 @@ import open3d as o3d
 import glob
 
 
-def get_default_testdata():
-    example_path = os.path.abspath(
-        os.path.join(__file__, os.path.pardir, os.path.pardir, os.path.pardir))
-
-    path_dataset = os.path.join(example_path, 'test_data', 'RGBD')
-    print('Dataset not found, falling back to test examples {}'.format(
-        path_dataset))
-
-    return path_dataset
-
-
 def load_depth_file_names(fn, depth_folder="depth"):
 
     depth_folder = os.path.join(fn, depth_folder)
@@ -99,70 +88,3 @@ def load_extrinsics(path_trajectory):
 
     return list(map(lambda x: o3d.core.Tensor(x, o3d.core.Dtype.Float64),
                 extrinsics))
-
-
-def init_volume(mode, config):
-    if config.engine == 'legacy':
-        return o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=config.voxel_size,
-            sdf_trunc=config.sdf_trunc,
-            color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
-
-    elif config.engine == 'tensor':
-        if mode == 'scene':
-            block_count = config.block_count
-        else:
-            block_count = config.block_count
-        return o3d.t.geometry.TSDFVoxelGrid(
-            {
-                'tsdf': o3d.core.Dtype.Float32,
-                'weight': o3d.core.Dtype.UInt16,
-                'color': o3d.core.Dtype.UInt16
-            },
-            voxel_size=config.voxel_size,
-            sdf_trunc=config.sdf_trunc,
-            block_resolution=16,
-            block_count=block_count,
-            device=o3d.core.Device(config.device))
-    else:
-        print('Unsupported engine {}'.format(config.engine))
-
-
-def extract_pointcloud(volume, config, file_name=None):
-    if config.engine == 'legacy':
-        mesh = volume.extract_triangle_mesh()
-
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = mesh.vertices
-        pcd.colors = mesh.vertex_colors
-
-        if file_name is not None:
-            o3d.io.write_point_cloud(file_name, pcd)
-
-    elif config.engine == 'tensor':
-        pcd = volume.extract_point_cloud(
-            weight_threshold=config.surface_weight_thr)
-
-        if file_name is not None:
-            o3d.io.write_point_cloud(file_name, pcd.to_legacy())
-
-    return pcd
-
-
-def extract_trianglemesh(volume, config, file_name=None):
-    if config.engine == 'legacy':
-        mesh = volume.extract_triangle_mesh()
-        mesh.compute_vertex_normals()
-        mesh.compute_triangle_normals()
-        if file_name is not None:
-            o3d.io.write_triangle_mesh(file_name, mesh)
-
-    elif config.engine == 'tensor':
-        mesh = volume.extract_triangle_mesh(
-            weight_threshold=config.surface_weight_thr)
-        mesh = mesh.to_legacy()
-
-        if file_name is not None:
-            o3d.io.write_triangle_mesh(file_name, mesh)
-
-    return mesh

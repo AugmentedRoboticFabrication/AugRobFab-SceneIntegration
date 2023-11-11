@@ -4,3 +4,4 @@ test*
 *.ply
 t_reconstruction_system/_archive/
 *.npz
+*.zip
