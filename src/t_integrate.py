@@ -141,7 +141,7 @@ class TSDF_Integration():
 			depth_paths = self._load_depth_file_names()
 
 		trajectory_path = os.path.join(self.dir, "trajectory.log")
-		extrinsic_poses = self.load_extrinsics(trajectory_path)
+		extrinsic_poses = self._load_extrinsics(trajectory_path)
 
 		for i in range(len(depth_paths)):
 			depth = o3d.t.io.read_image(depth_paths[i]).to(self.device)
