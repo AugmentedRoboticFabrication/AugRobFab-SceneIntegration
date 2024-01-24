@@ -1,6 +1,7 @@
 
 # Scene Integration Module
 
+For complete system functionality, refer to the [Augmented Robotic Fabrication](https://github.com/AugmentedRoboticFabrication) repository.
 ## Installation
 
 ### Major Requirements
@@ -48,7 +49,7 @@ conda create --name augrobfab python=3.9
 
 ### Installing Additional Python Dependencies
 
-Navigate to the project repository and install necessary Python packages:
+Navigate to the project repository and install the necessary Python packages:
 ```
 cd <Path-To-Scene-Integration-Repo>
 pip install -r requirements.txt
