@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 ## Citation
 
-Please cite [our work](https://doi.org/10.1007/s41693-022-00081-4) if you use this codebase in your research.
+Please cite [our work](https://doi.org/10.1007/s41693-022-00081-4) if you use our codebase in your research.
 
 ```bib
 @article{Capunaman2022,
