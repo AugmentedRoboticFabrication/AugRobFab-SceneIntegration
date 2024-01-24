@@ -1,9 +1,5 @@
 
-# A Vision-based Sensing Framework for Augmented Robotic Fabrication
-
-## Overview
-
-This module is part of a vision-based sensing framework aimed at digitally reconstructing and registering the work environment. It enables robotic tooling on indefinite surfaces by providing accurate, reliable, and efficient digital reconstruction. The module leverages advanced computer vision techniques to process data from RGBD sensors, reconstructing the environment in 3D. For complete system functionality, refer to the [Hand-Eye Calibration Module](https://github.com/AugmentedRoboticFabrication/AugRobFab-HandEyeCalibration) and the [Jetson Board Azure Kinect Image Capture Module](https://github.com/AugmentedRoboticFabrication/AugRobFab-JetsonMKVRecorder).
+# Scene Integration Module
 
 ## Installation
 
