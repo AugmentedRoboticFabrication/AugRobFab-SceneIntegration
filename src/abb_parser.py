@@ -35,12 +35,12 @@ class TROBParser:
 		if extrinsic_dir is not None:
 			data = readJSON(extrinsic_dir)
 			self.extrinsic = np.asarray(data.get('extrinsic')).reshape((4,4))
-			print("-------------------")
-			print("Extrinsic Calibration:")
-			print(self.extrinsic)
-			print("-------------------")
 		else:
-			self.extrinsic = extrinsic_dir
+			self.extrinsic = np.eye(4)
+		print("-------------------")
+		print("Extrinsic Calibration:")
+		print(self.extrinsic)
+		print("-------------------")
 
 	def _find_mod_file(self):
 		"""
@@ -185,8 +185,6 @@ class TROBParser:
 		:raises RuntimeError: If no extrinsic calibration data is provided.
 		"""
 
-		if self.extrinsic is None:
-			raise RuntimeError('No extrinsic was given!')
 		data = self.base_T_tcp()
 		Ts = np.asarray(data.get('H')).reshape((-1,4,4))
 
