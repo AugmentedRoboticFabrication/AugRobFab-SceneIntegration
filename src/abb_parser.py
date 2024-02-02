@@ -120,6 +120,7 @@ class TROBParser:
 					if len(array_data) >= 2:
 						pos = array_data[0]
 						quat = array_data[1][:4]  # Ensure quat is the first four elements if more data is present
+						quat = [quat[1], quat[2], quat[3], quat[0]]
 						ret = True
 			except (ValueError, SyntaxError) as e:
 				print(f"Error parsing line: {line}\n{e}")
