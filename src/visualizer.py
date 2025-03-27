@@ -3,48 +3,223 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from typing import Optional, Tuple, List
 
 class CameraPoseVisualizer:
-    def __init__(self, xlim, ylim, zlim):
-        self.fig = plt.figure(figsize=(18, 7))
-        self.ax = self.fig.gca(projection='3d')
-        self.ax.set_aspect("auto")
-        self.ax.set_xlim(xlim)
-        self.ax.set_ylim(ylim)
-        self.ax.set_zlim(zlim)
-        self.ax.set_xlabel('x')
-        self.ax.set_ylabel('y')
-        self.ax.set_zlabel('z')
-        print('initialize camera pose visualizer')
+    """
+    Visualizer for 3D camera poses.
+    
+    This class provides methods to visualize camera poses as pyramids in 3D space. 
+    Each camera is represented as a pyramid with its apex at the camera center and 
+    its base corresponding to the image plane. Axis limits can be provided manually, 
+    or they will be computed dynamically based on the plotted data.
+    
+    The class also supports optional drawing of the camera trajectory (connecting 
+    camera centers) and numbering (annotating each camera center with its index).
+    
+    Attributes:
+        fig (plt.Figure): The matplotlib figure object.
+        ax (mpl_toolkits.mplot3d.Axes3D): The 3D axes object for plotting.
+        xlim (Optional[Tuple[float, float]]): Limits for the x-axis. If None, computed later.
+        ylim (Optional[Tuple[float, float]]): Limits for the y-axis. If None, computed later.
+        zlim (Optional[Tuple[float, float]]): Limits for the z-axis. If None, computed later.
+        all_vertices (List[List[float]]): List of all vertices from plotted pyramids.
+        trajectory (List[List[float]]): List of camera center positions.
+        draw_trajectory (bool): Flag to draw the trajectory connecting camera centers.
+        draw_numbers (bool): Flag to annotate camera centers with their index.
+    """
+    def __init__(self, 
+                 xlim: Optional[Tuple[float, float]] = None, 
+                 ylim: Optional[Tuple[float, float]] = None, 
+                 zlim: Optional[Tuple[float, float]] = None, 
+                 figsize: Tuple[int, int] = (18, 7),
+                 draw_trajectory: bool = True,
+                 draw_numbers: bool = True):
+        """
+        Initializes the CameraPoseVisualizer.
+        
+        Args:
+            xlim (Optional[Tuple[float, float]]): Tuple (min, max) for x-axis limits. Defaults to None.
+            ylim (Optional[Tuple[float, float]]): Tuple (min, max) for y-axis limits. Defaults to None.
+            zlim (Optional[Tuple[float, float]]): Tuple (min, max) for z-axis limits. Defaults to None.
+            figsize (Tuple[int, int]): Size of the figure. Defaults to (18, 7).
+            draw_trajectory (bool): Flag to draw trajectory connecting camera centers. Defaults to False.
+            draw_numbers (bool): Flag to annotate camera centers with their index. Defaults to False.
+        """
+        self.fig = plt.figure(figsize=figsize)
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        self.ax.set_xlabel('X')
+        self.ax.set_ylabel('Y')
+        self.ax.set_zlabel('Z')
+        
+        # Store axis limits; if any is None, they will be computed later.
+        self.xlim = xlim
+        self.ylim = ylim
+        self.zlim = zlim
+        
+        # Set provided axis limits immediately if available.
+        if self.xlim is not None:
+            self.ax.set_xlim(self.xlim)
+        if self.ylim is not None:
+            self.ax.set_ylim(self.ylim)
+        if self.zlim is not None:
+            self.ax.set_zlim(self.zlim)
+            
+        # Lists to accumulate data for auto-scaling and trajectory drawing.
+        self.all_vertices: List[List[float]] = []  # All vertices for axis scaling.
+        self.trajectory: List[List[float]] = []      # Camera centers for trajectory.
+        
+        # Flags for additional features.
+        self.draw_trajectory = draw_trajectory
+        self.draw_numbers = draw_numbers
+        
+        print('Initialized CameraPoseVisualizer')
 
-    def extrinsic2pyramid(self, extrinsic, color='r', focal_len_scaled=5, aspect_ratio=0.3):
-        vertex_std = np.array([[0, 0, 0, 1],
-                               [focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [-focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [-focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1]])
+    def extrinsic2pyramid(self, 
+                          extrinsic: np.ndarray, 
+                          color: str = 'r', 
+                          focal_len_scaled: float = 5, 
+                          aspect_ratio: float = 0.3) -> None:
+        """
+        Converts an extrinsic camera pose into a pyramid representation and adds it to the plot.
+        
+        The pyramid is constructed from a standard set of vertices defined in homogeneous coordinates.
+        The extrinsic matrix (4x4) is applied to these vertices, and the resulting 3D points (after dropping
+        the homogeneous coordinate) are used to draw the pyramid.
+        
+        Additionally, the camera center is stored for trajectory drawing, and annotated with an index if 
+        drawing numbers is enabled.
+        
+        Args:
+            extrinsic (np.ndarray): A 4x4 transformation matrix representing the camera pose.
+            color (str): Color of the pyramid. Defaults to 'r'.
+            focal_len_scaled (float): Scaled focal length to determine pyramid size. Defaults to 5.
+            aspect_ratio (float): Aspect ratio for the pyramid base. Defaults to 0.3.
+        """
+        # Standard vertices for the camera pyramid in homogeneous coordinates (5 vertices)
+        vertex_std = np.array([
+            [0, 0, 0, 1],  # Camera center (apex)
+            [ focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+            [ focal_len_scaled * aspect_ratio,  focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+            [-focal_len_scaled * aspect_ratio,  focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+            [-focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1]
+        ])
+        
+        # Transform standard vertices by the extrinsic matrix.
         vertex_transformed = vertex_std @ extrinsic.T
-        meshes = [[vertex_transformed[0, :-1], vertex_transformed[1][:-1], vertex_transformed[2, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[4, :-1], vertex_transformed[1, :-1]],
-                            [vertex_transformed[1, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]]]
-        self.ax.add_collection3d(
-            Poly3DCollection(meshes, facecolors=color, linewidths=0.3, edgecolors=color, alpha=0.35))
+        # Convert homogeneous coordinates to 3D.
+        verts = vertex_transformed[:, :3]
+        
+        # Append the vertices for auto-scaling.
+        self.all_vertices.extend(verts.tolist())
+        
+        # Save the camera center (first vertex) for trajectory drawing.
+        cam_center = verts[0].tolist()
+        self.trajectory.append(cam_center)
+        
+        # Optionally annotate the camera center with its index.
+        if self.draw_numbers:
+            idx = len(self.trajectory) - 1
+            self.ax.text(cam_center[0], cam_center[1], cam_center[2], f'{idx}', 
+                         color='black', fontsize=10)
+        
+        # Define the pyramid faces (each face is a list of vertices).
+        meshes = [
+            [verts[0], verts[1], verts[2]],         # Side face 1
+            [verts[0], verts[2], verts[3]],         # Side face 2
+            [verts[0], verts[3], verts[4]],         # Side face 3
+            [verts[0], verts[4], verts[1]],         # Side face 4
+            [verts[1], verts[2], verts[3], verts[4]]  # Base (image plane)
+        ]
+        # Create and add the 3D polygon collection to the axes.
+        poly_collection = Poly3DCollection(meshes, facecolors=color, linewidths=0.3, 
+                                             edgecolors=color, alpha=0.35)
+        self.ax.add_collection3d(poly_collection)
 
-    def customize_legend(self, list_label):
-        list_handle = []
-        for idx, label in enumerate(list_label):
-            color = plt.cm.rainbow(idx / len(list_label))
+    def customize_legend(self, labels: List[str]) -> None:
+        """
+        Customizes the plot legend using the provided labels.
+        
+        Each label is assigned a unique color from the 'rainbow' colormap.
+        
+        Args:
+            labels (List[str]): List of label strings for the legend.
+        """
+        handles = []
+        for idx, label in enumerate(labels):
+            # Get a distinct color for each label.
+            color = plt.cm.rainbow(idx / len(labels))
             patch = Patch(color=color, label=label)
-            list_handle.append(patch)
-        plt.legend(loc='right', bbox_to_anchor=(1.8, 0.5), handles=list_handle)
+            handles.append(patch)
+        self.ax.legend(handles=handles, loc='upper right')
 
-    def colorbar(self, max_frame_length):
+    def add_colorbar(self, max_value: float, label: str = 'Frame Number') -> None:
+        """
+        Adds a colorbar to the figure.
+        
+        The colorbar is based on a scalar mappable using the 'rainbow' colormap.
+        
+        Args:
+            max_value (float): The maximum value for normalization.
+            label (str): Label for the colorbar. Defaults to 'Frame Number'.
+        """
         cmap = mpl.cm.rainbow
-        norm = mpl.colors.Normalize(vmin=0, vmax=max_frame_length)
-        self.fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), orientation='vertical', label='Frame Number')
+        norm = mpl.colors.Normalize(vmin=0, vmax=max_value)
+        mappable = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+        mappable.set_array([])
+        self.fig.colorbar(mappable, ax=self.ax, orientation='vertical', label=label)
 
-    def show(self):
-        plt.title('Extrinsic Parameters')
+    def draw_trajectory_line(self) -> None:
+        """
+        Draws the trajectory line connecting the camera centers.
+        
+        This method is called in the show() method if the draw_trajectory flag is enabled.
+        """
+        if len(self.trajectory) >= 2:
+            # Convert list of centers to a numpy array for plotting.
+            traj = np.array(self.trajectory)
+            self.ax.plot(traj[:, 0], traj[:, 1], traj[:, 2], 
+                         color='blue', linestyle='-', marker='o', 
+                         linewidth=2, markersize=4)
+
+    def show(self, title: str = 'Camera Poses') -> None:
+        """
+        Displays the 3D plot.
+        
+        If any of the axis limits (x, y, or z) were not provided during initialization, they are 
+        automatically computed based on the plotted camera pyramid vertices, with a small margin.
+        
+        Additionally, if the draw_trajectory flag is enabled, the trajectory connecting camera centers 
+        is drawn.
+        
+        Args:
+            title (str): Title of the plot. Defaults to 'Camera Poses'.
+        """
+        # Auto-scale axes if limits were not provided.
+        if self.all_vertices:
+            all_points = np.array(self.all_vertices)
+            
+            # Compute and set x-axis limits if not provided.
+            if self.xlim is None:
+                x_min, x_max = np.min(all_points[:, 0]), np.max(all_points[:, 0])
+                margin = (x_max - x_min) * 0.1 if (x_max - x_min) != 0 else 1.0
+                self.ax.set_xlim(x_min - margin, x_max + margin)
+            
+            # Compute and set y-axis limits if not provided.
+            if self.ylim is None:
+                y_min, y_max = np.min(all_points[:, 1]), np.max(all_points[:, 1])
+                margin = (y_max - y_min) * 0.1 if (y_max - y_min) != 0 else 1.0
+                self.ax.set_ylim(y_min - margin, y_max + margin)
+            
+            # Compute and set z-axis limits if not provided.
+            if self.zlim is None:
+                z_min, z_max = np.min(all_points[:, 2]), np.max(all_points[:, 2])
+                margin = (z_max - z_min) * 0.1 if (z_max - z_min) != 0 else 1.0
+                self.ax.set_zlim(z_min - margin, z_max + margin)
+        
+        # Draw trajectory line if enabled.
+        if self.draw_trajectory:
+            self.draw_trajectory_line()
+
+        plt.title(title)
         plt.show()
