@@ -128,7 +128,7 @@ class TROBParser:
 
 		return ret, pos, quat
 
-	def base_T_tcp(self):
+	def base_T_tcp(self, export = True):
 		"""
 		Calculates the transformations from the base to the tool center point (TCP) from the .mod file.
 
@@ -172,13 +172,14 @@ class TROBParser:
 				'H': L_H
 			}
 			path = os.path.join(self.dir, 'base_T_tcp.json')
-			writeJSON(data, path)
+			if export:
+				writeJSON(data, path)
 			return data
 		else:
 			raise RuntimeError(
 				f"No robtarget or MoveL keywords were found in {mod_path}!")
 
-	def base_T_camera(self):
+	def base_T_camera(self, export=True):
 		"""
 		Calculates the transformations from the base to the camera frame.
 
@@ -218,7 +219,8 @@ class TROBParser:
 				'H': L_H
 			}
 			path = os.path.join(self.dir, 'base_T_camera.json')
-			writeJSON(data, path)
+			if export:
+				writeJSON(data, path)
 			return data
 		
 	def trajectory(self):
