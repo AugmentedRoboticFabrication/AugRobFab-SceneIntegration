@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import json
-from pyk4a import Config, PyK4A, PyK4APlayback
 from scipy.spatial.transform import Rotation
 
 # Set the working directory to the directory of the script
