@@ -5,9 +5,7 @@ import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 
-from src.t_common import load_rgbd_file_names, load_depth_file_names, load_intrinsic, load_extrinsics
-
-from src.util import readJSON, import_intrinsic_calib
+from src.util import import_intrinsic_calib
 
 class TSDF_Integration():
 	"""
@@ -141,7 +139,7 @@ class TSDF_Integration():
 			depth_paths = self._load_depth_file_names()
 
 		trajectory_path = os.path.join(self.dir, "trajectory.log")
-		extrinsic_poses = self.load_extrinsics(trajectory_path)
+		extrinsic_poses = self._load_extrinsics(trajectory_path)
 
 		for i in range(len(depth_paths)):
 			depth = o3d.t.io.read_image(depth_paths[i]).to(self.device)

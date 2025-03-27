@@ -1,0 +1,96 @@
+--------------------------------------------------------------------------
+MAJOR REQUIREMENTS
+--------------------------------------------------------------------------
+
+    1- Visual Studio 2019 (Tested w/ v16.11)
+        * Check 'Desktop development with C++' option.
+            * Check MSVC VS 2015, MSVC VS 2017 on the right panel
+    2- CMake (Tested w/ v3.28.0-rc5)
+        * Add CMake to PATH during installation.
+    3- NVIDIA Driver (Tested w/ v546.17)
+    4- CUDA Toolkit (Tested w/ v11.8.0)
+    5- Anaconda (Tested w/ v2023.09)
+    6- Microsoft Azure Kinect SDK (Tested w/ v1.4.1)
+
+--------------------------------------------------------------------------
+CONDA
+--------------------------------------------------------------------------
+
+    1- Create a conda environment with Python 3.9
+        conda create --name augrobfab python=3.9
+
+--------------------------------------------------------------------------
+OPEN3D
+--------------------------------------------------------------------------
+
+    1- Clone Open3D locally (Tested w/ v0.17.0). (https://github.com/isl-org/Open3D)
+        # Use -b flag to specify 0.17.0 release.
+            git clone https://github.com/isl-org/Open3D.git -b v0.17.0
+
+        # Change directory to Open3D folder.
+        # Make sure that the path is pointing to the right directory!
+            cd C:\Users\AugRobFab\Documents\GitHub\Open3D
+
+    2- Build Open3D from source.
+
+        # Create a build folder.
+            mkdir build
+
+        # Change directory to build folder.
+            cd build
+
+        # Configure with -DBUILD_CUDA_MODULE=OFF -DBUILD_AZURE_KINECT=ON
+        # Make sure DCMAKE_INSTALL_PREFIX is pointing to the right directory!   
+            cmake -G "Visual Studio 16 2019" -A x64 -DCMAKE_INSTALL_PREFIX="C:\Users\AugRobFab\Documents\GitHub\Open3D" -DBUILD_CUDA_MODULE=OFF -DBUILD_AZURE_KINECT=ON ..
+                
+        # Build.
+            cmake --build . --config Release --target ALL_BUILD
+        
+        # Configure with -DBUILD_CUDA_MODULE=ON -DBUILD_AZURE_KINECT=ON.
+        # Make sure DCMAKE_INSTALL_PREFIX is pointing to the right directory!
+            cmake -G "Visual Studio 16 2019" -A x64 -DCMAKE_INSTALL_PREFIX="C:\Users\AugRobFab\Documents\GitHub\Open3D" -DBUILD_CUDA_MODULE=ON -DBUILD_AZURE_KINECT=ON ..
+        
+        # Build again.
+            cmake --build . --config Release --target ALL_BUILD
+
+        # Build pip wheel.
+            cmake --build . --config Release --target pip-package
+
+    3- Install built pip wheel.
+    
+        # Activate conda environment.
+            conda activate augrobfab
+        
+        # Change directory to pip package folder
+            cd lib\python_package\pip_package
+        
+        # Install the pip wheel
+        # Make sure the pip wheel filename is correct!
+            pip install open3d*.whl
+
+    4- Confirm installation.
+        # Activate conda environment.
+            conda activate augrobfab
+
+        # Test if Open3D is successfully compiled with CUDA support. If successful, it should print 'True'.
+            python -c 'import open3d as o3d; print(o3d.core.cuda.is_available())'
+    * Notes:
+
+        - If you are having "Unimplemented Device" error(especially in earlier versions of Open3D), see this issue here (https://github.com/isl-org/Open3D/issues/5734):
+            Edit __init__.py file under "...\anaconda3\envs\augrobfab\Lib\site-packages\open3d" by inserting winmode=0 flag.
+                _pybind_cuda = _CDLL(
+                    str(next((_Path(__file__).parent / 'cuda').glob('pybind*'))), winmode=0)
+
+        - If you are having "No module named 'open3d.cpu'" error, see my comments here (https://github.com/isl-org/Open3D/issues/4203):
+            I've injected "os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8\\bin")" to the __init__.py file at "C:\Users\USER_NAME\anaconda3\envs\ENVIRONMENT_NAME\Lib\site-packages\open3d\__init__.py"
+
+--------------------------------------------------------------------------
+PIP
+--------------------------------------------------------------------------
+    1- Change directory to Scene Integration repo folder.
+        # Make sure that the path is pointing to the right directory!
+            cd C:\Users\AugRobFab\Documents\GitHub\AugRobFab-SceneIntegration
+    
+    1- Install additional pip packages required(Alternatively, you can install them individually using pip install):
+        pip install -r requirements.txt
+-------------------------------------------------------------------------
